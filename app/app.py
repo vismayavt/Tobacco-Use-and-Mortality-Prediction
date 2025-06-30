@@ -1,40 +1,41 @@
 from flask import Flask, request, jsonify
 import joblib
 import numpy as np
+import pandas as pd
 
 app = Flask(__name__)
 
-# Load the trained pipeline (StandardScaler + Model)
-model = joblib.load('app/mortality_model.pkl')
-scaler = joblib.load("app/scaler.pkl")  # if used
+# Load model and features
+model = joblib.load("app/mortality_model.pkl")
+feature_columns = joblib.load("app/feature_columns.pkl")
 
-@app.route('/')
+@app.route("/")
 def home():
-    return "Welcome to Tobacco Mortality Predictor API!"
+    return "Welcome to the Tobacco Mortality Prediction API!"
 
-@app.route('/predict', methods=['POST'])
+@app.route("/predict", methods=["POST"])
 def predict():
     try:
         data = request.get_json()
-        print("Received input:", data)
+        df = pd.DataFrame([data])
 
-        # Make sure keys match model input
-        expected_features = ['feature1', 'feature2', 'feature3']
-        if not all(f in data for f in expected_features):
-            return jsonify({'error': 'Missing one or more required features'})
+        # Ensure column order and types
+        for col in feature_columns:
+            if col not in df.columns:
+                df[col] = ""  # or a default like "Unknown" for categories, 0 for numbers
 
-        # Convert to array for prediction
-        features = np.array([[data['feature1'], data['feature2'], data['feature3']]])
-        prediction = model.predict(features)
+        df = df[feature_columns]
 
-        return jsonify({'prediction': float(prediction[0])})
+        prediction = model.predict(df)[0]
+        probability = model.predict_proba(df)[0][1]
+
+        return jsonify({
+            "prediction": int(prediction),
+            "probability": float(probability)
+        })
 
     except Exception as e:
-        print("Error during prediction:", e)
-        return jsonify({'error': str(e)})
+        return jsonify({"error": str(e)}), 400
 
-if __name__ == '__main__':
-    app.run(debug=True, use_reloader=False)
-
-
-
+if __name__ == "__main__":
+    app.run(debug=True)

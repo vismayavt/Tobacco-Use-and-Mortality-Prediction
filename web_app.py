@@ -1,33 +1,59 @@
 import streamlit as st
+import joblib
+import pandas as pd
 import requests
 
-st.title("Tobacco Mortality Predictor")
+# Load the dataset to get unique values for dropdowns
+df = pd.read_csv(r"C:\Users\visma\OneDrive\Desktop\Tobacco_Mortality\data\admissions.csv")
 
-# Input fields (rename based on your actual features)
-feature1 = st.number_input("Feature 1: Smoking Rate", value=0.0)
-feature2 = st.number_input("Feature 2: Tobacco Exposure (years)", value=0.0)
-feature3 = st.number_input("Feature 3: Age Group Encoded", value=0.0)
+# Clean the data
+df = df.dropna(subset=["Value"])
+df["Sex"] = df["Sex"].fillna("Unknown")
+df["Year"] = df["Year"].astype(str).str.extract(r"(\d{4})")
+df = df.dropna(subset=["Year"])
+df["Year"] = df["Year"].astype(int)
 
+# Unique dropdown values
+years = sorted(df["Year"].unique())
+codes = sorted(df["ICD10 Code"].dropna().unique())
+diagnoses = sorted(df["ICD10 Diagnosis"].dropna().unique())
+types = sorted(df["Diagnosis Type"].dropna().unique())
+metrics = sorted(df["Metric"].dropna().unique())
+sexes = sorted(df["Sex"].unique())
+
+# Streamlit app UI
+st.title("🧠 Tobacco Mortality Predictor")
+st.markdown("Enter the details below to predict the likelihood of mortality based on hospital admission records.")
+
+# Dropdown input fields
+year = st.selectbox("Select Year", years)
+code = st.selectbox("ICD10 Code", codes)
+diagnosis = st.selectbox("ICD10 Diagnosis", diagnoses)
+diagnosis_type = st.selectbox("Diagnosis Type", types)
+metric = st.selectbox("Metric", metrics)
+sex = st.selectbox("Sex", sexes)
+
+# Predict button
 if st.button("Predict"):
-    data = {
-        "feature1": feature1,
-        "feature2": feature2,
-        "feature3": feature3
+    input_data = {
+        "Year": int(year),
+        "ICD10 Code": code,
+        "ICD10 Diagnosis": diagnosis,
+        "Diagnosis Type": diagnosis_type,
+        "Metric": metric,
+        "Sex": sex
     }
 
-    st.write("Sending to API:", data)
+    st.markdown("📤 Sending the following data to the API:")
+    st.json(input_data)
 
     try:
-        response = requests.post("http://127.0.0.1:5000/predict", json=data)
-
+        response = requests.post("http://127.0.0.1:5000/predict", json=input_data)
         if response.status_code == 200:
             result = response.json()
-            if 'prediction' in result:
-                st.success(f"Predicted Mortality: {result['prediction']:.2f}")
-            else:
-                st.error(f"API Error: {result.get('error', 'Unknown error')}")
+            st.success(f"✅ Predicted Mortality Class: {result['prediction']}")
+            st.metric("📈 Predicted Probability", round(result['probability'], 4))
         else:
-            st.error(f"HTTP Error {response.status_code}")
-
-    except requests.exceptions.ConnectionError:
-        st.error("❌ Cannot connect to Flask API. Please ensure it's running.")
+            st.error(f"❌ API returned HTTP {response.status_code}")
+    except Exception as e:
+        st.error(f"⚠️ Error: {e}")
