@@ -30,8 +30,10 @@ This project predicts tobacco-related mortality using hospital admission data fr
    ```bash
    python train_model.py
 2. **Start Flask API:**
+   ```bash
    python app/app.py
 3. **Launch Streamlit app:**   
+   ```bash
    streamlit run web_app.py
 
 ---
